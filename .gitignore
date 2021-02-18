@@ -16,3 +16,5 @@ test-repo/
 
 .ipynb_checkpoints
 docs/_build
+.idea
+venv

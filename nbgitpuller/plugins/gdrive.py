@@ -50,11 +50,6 @@ while True:
     if page_token is None:
         break
 
-
-
-
-
-
 request = service.files().get_media(fileId=file_id)
 fh = io.BytesIO()
 downloader = MediaIoBaseDownload(fh, request)

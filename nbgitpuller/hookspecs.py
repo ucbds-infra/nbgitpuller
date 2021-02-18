@@ -10,8 +10,8 @@ The structure of the pluggin for third party file management system implementati
  # @hookspec
  # def function_name(arguments):
 
- @hookspec
- def sync_file_management_system(repo: str, parent_dir: str, repo_dir: str):
+@hookspec
+def sync_file_management_system(repo: str, parent_dir: str, repo_dir: str):
      """
      Checks if the current remote git repository exists from repo.
 

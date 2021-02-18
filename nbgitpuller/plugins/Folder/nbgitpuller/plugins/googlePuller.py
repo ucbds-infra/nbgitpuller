@@ -4,16 +4,21 @@ import logging
 import time
 import argparse
 import datetime
+
+# from git import Repo
+from googleapiclient.http import MediaIoBaseDownload
 from traitlets import Integer, default
 from traitlets.config import Configurable
-from functools import partial
 
+import git
 import os.path
+import io
+from nbgitpuller.plugins.Folder.nbgitpuller.pull import execute_cmd
+
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
-
-import git
+from functools import partial
 
 
 class GooglePuller(Configurable):
@@ -27,40 +32,39 @@ class GooglePuller(Configurable):
         where the GooglePuller class hadn't been loaded already."""
         return int(os.environ.get('NBGITPULLER_DEPTH', 1))
 
-    def __init__(self, git_url, branch_name, repo_dir, **kwargs, file_id, student):
-        assert git_url and branch_name
+    def __init__(self, git_url, branch_name, repo_dir, file_id, student, service, **kwargs):
+        #assert git_url and branch_name
 
-        #URLs of git
+        # URLs of git
         self.git_url = git_url
         self.branch_name = branch_name
         self.repo_dir = repo_dir
 
         self.temp_repo = None
+        self.service = service
+        # unique identifier of student after authentication
+        self.student = str(student)
 
-        #unique identifier of student after authentication
-        self.student = String(student)
-
-        self.file_id = String(file_id)
+        self.file_id = str(file_id)
         self.file_path = ""
         newargs = {k: v for k, v in kwargs.items() if v is not None}
-        super(GooglePuller, self).__init__(**newargs)
+        #super(GooglePuller, self).__init__(**newargs)
 
-
-    async def fetch():
+    async def fetch(self):
         """
         fetches the file from the file name given and downloads it to directory
         """
 
         file_id = self.file_id
-        request = drive_service.files().get_media(fileId=file_id)
+        request = self.service.files().get_media(fileId=file_id)
         fh = io.BytesIO()
         downloader = MediaIoBaseDownload(fh, request)
         done = False
         while done is False:
             status, done = downloader.next_chunk()
-            print "Download %d%%." % int(status.progress() * 100)
+            print("Download %d%%." % int(status.progress() * 100))
 
-    async def createRepo():
+    async def createRepo(self):
         """
         Creates a new, hidden remote git repo to push google drive folder into
         """
@@ -74,24 +78,24 @@ class GooglePuller(Configurable):
         r.index.add([file_path])
         r.index.commit("initial commit")
 
-    async def checkIfRepoExists():
+    async def checkIfRepoExists(self):
         """
         Checks to see if the hidden repo already exists
         """
 
         repo_dir = os.path.join(self.repo_dir, self.student)
-        repo = Repo(repo_dir)
+        repo = git.Repo(repo_dir)
 
-        if !repo.exists():
-            createRepo()
+        if not repo.exists():
+            await self.createRepo()
         else:
-            pushHidden()
+            await self.pushHidden()
 
         # empty_repo = git.Repo.init(os.path.join(self.repo_dir, self.student))
         # origin = empty_repo.create_remote('origin', repo.remotes.origin.url)
         # assert origin.exists()
 
-    async def pushHidden():
+    async def pushHidden(self):
         """
         pushes google drive file to hidden repo
         """
@@ -99,9 +103,6 @@ class GooglePuller(Configurable):
         open(self.file_path, 'wb').close()
         r.index.add([self.file_path])
         r.index.commit("hidden commit")
-
-
-
 
     def pull(self):
         """
@@ -140,7 +141,8 @@ class GooglePuller(Configurable):
 
         for filename in deleted_files:
             if filename:  # Filter out empty lines
-                yield from execute_cmd(['git', 'checkout', 'origin/{}'.format(self.branch_name), '--', filename], cwd=self.repo_dir)
+                yield from execute_cmd(['git', 'checkout', 'origin/{}'.format(self.branch_name), '--', filename],
+                                       cwd=self.repo_dir)
 
     def repo_is_dirty(self):
         """
@@ -259,3 +261,4 @@ class GooglePuller(Configurable):
             'merge',
             '-Xours', 'origin/{}'.format(self.branch_name)
         ], cwd=self.repo_dir)
+
